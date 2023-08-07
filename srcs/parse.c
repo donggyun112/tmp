@@ -88,7 +88,6 @@ int	init_sphere(char **tmp, t_canvas *canvas, int count)
 		canvas->obj->sp[idx].color[RED] = ft_strtod(tmp[5]);
 		canvas->obj->sp[idx].color[GREEN] = ft_strtod(tmp[6]);
 		canvas->obj->sp[idx].color[BLUE] = ft_strtod(tmp[7]);
-		bounding_sphere(&canvas->obj->sp[idx]);
 		idx++;
 	}
 	else

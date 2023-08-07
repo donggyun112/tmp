@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   minirt.c                                           :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: seodong-gyun <seodong-gyun@student.42.f    +#+  +:+       +#+        */
+/*   By: dongkseo <dongkseo@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/07/20 11:48:10 by jinhyeop          #+#    #+#             */
-/*   Updated: 2023/08/06 16:37:58 by seodong-gyu      ###   ########.fr       */
+/*   Updated: 2023/08/07 19:02:04 by dongkseo         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -14,23 +14,19 @@
 
 void	intersection(t_ray3 *ray, t_volume *obj, t_canvas canvas)
 {
-	int	idx = -1;
-	int	i;
-	(void)canvas;
+	int	idx;
 
-	i = 0;
-	while (i < obj->pl_cnt)
+	idx = 0;
+	while (idx < obj->sp_cnt)
 	{
-		hit_plane(ray, &obj->pl[i], canvas);
-		i++;
+		hit_sphere(ray, &obj->sp[idx], canvas);
+		idx++;
 	}
-	while (++idx < obj->sp_cnt)
+	idx = 0;
+	while (idx < obj->pl_cnt)
 	{
-		if (hit(*ray, 0.1, 12.0, obj->sp[idx].box))
-		{
-			hit_sphere(ray, &obj->sp[idx]);
-			continue;
-		}
+		hit_plane(ray, &obj->pl[idx], canvas);
+		idx++;
 	}
 }
 

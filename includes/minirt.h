@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   minirt.h                                           :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: seodong-gyun <seodong-gyun@student.42.f    +#+  +:+       +#+        */
+/*   By: dongkseo <dongkseo@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/07/19 20:59:30 by jinhyeop          #+#    #+#             */
-/*   Updated: 2023/08/06 16:14:48 by seodong-gyu      ###   ########.fr       */
+/*   Updated: 2023/08/07 19:01:46 by dongkseo         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -48,8 +48,8 @@ double		my_rand_double_range(double min, double max);
 int 		my_rand();
 
 //intersection
-void		hit_sphere(t_ray3 *ray, t_sphere *sp);
-int			hit_plane(t_ray3 *ray, t_plane *pl, t_canvas canvas);
+void		hit_sphere(t_ray3 *ray, t_sphere *sp, t_canvas canvas);
+void		hit_plane(t_ray3 *ray, t_plane *pl, t_canvas canvas);
 
 //raycasting
 t_ray3		create_ray(t_camera cam, double u, double v);

@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   raycasting.c                                       :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: seodong-gyun <seodong-gyun@student.42.f    +#+  +:+       +#+        */
+/*   By: jinhyeop <jinhyeop@student.42seoul.kr>     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/07/27 02:07:30 by seodong-gyu       #+#    #+#             */
-/*   Updated: 2023/08/05 02:44:30 by seodong-gyu      ###   ########.fr       */
+/*   Updated: 2023/07/31 20:48:37 by jinhyeop         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -71,3 +71,53 @@ t_ray3	create_ray(t_camera cam, double u, double v)
 	ray.t = -1.0;
 	return (ray);
 }
+
+
+/* void render(
+    const Options &options,
+    const std::vector<std::unique_ptr<Object>> &objects,
+    const std::vector<std::unique_ptr<Light>> &lights)
+{
+    Matrix44f cameraToWorld;
+    Vec3f *framebuffer = new Vec3f[options.width * options.height];
+    Vec3f *pix = framebuffer;
+    float scale = tan(deg2rad(options.fov * 0.5));
+    float imageAspectRatio = options.width / (float)options.height;
+    Vec3f orig;
+    cameraToWorld.multVecMatrix(Vec3f(0), orig);
+
+    for (uint32_t j = 0; j < options.height; ++j) {
+        for (uint32_t i = 0; i < options.width; ++i) {
+            // Calculate pixel position on the image plane
+            float x = (2 * (i + 0.5) / (float)options.width - 1) * imageAspectRatio * scale;
+            float y = (1 - 2 * (j + 0.5) / (float)options.height) * scale;
+
+            // Calculate the direction of the ray in world coordinates
+            float Px = (2 * ((x + 0.5) / options.width) - 1) * tan(deg2rad(options.fov * 0.5));
+            float Py = (1 - 2 * ((y + 0.5) / options.height)) * tan(deg2rad(options.fov * 0.5));
+
+            Vec3f rayOrigin = Point3(0, 0, 0);
+            Vec3f rayPWorld(Px, Py, -1);
+            cameraToWorld.multVecMatrix(rayOrigin, orig);
+            cameraToWorld.multVecMatrix(rayPWorld, rayPWorld);
+            Vec3f rayDirection = rayPWorld - orig;
+            rayDirection.normalize();
+
+            // Cast the ray and get the pixel color
+            *(pix++) = castRay(orig, rayDirection, objects, lights, options, 0);
+        }
+    }
+
+    // Save result to a PPM image (keep these flags if you compile under Wi
+    std::ofstream ofs("./out.ppm", std::ios::out | std::ios::binary);
+    ofs << "P6\n" << options.width << " " << options.height << "\n255\n";
+    for (uint32_t i = 0; i < options.height * options.width; ++i) {
+        char r = (char)(255 * clamp(0, 1, framebuffer[i].x));
+        char g = (char)(255 * clamp(0, 1, framebuffer[i].y));
+        char b = (char)(255 * clamp(0, 1, framebuffer[i].z));
+        ofs << r << g << b;
+    }
+    ofs.close();
+    delete[] framebuffer;
+}
+ */
