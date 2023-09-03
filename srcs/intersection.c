@@ -1,108 +1,148 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   intersection.c                                     :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: seodong-gyun <seodong-gyun@student.42.f    +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2023/08/29 20:29:45 by jinhyeop          #+#    #+#             */
+/*   Updated: 2023/09/04 00:52:07 by seodong-gyu      ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 #include "../includes/minirt.h"
-#include <stdio.h> //remove
 
-int	hit_line_sphere(t_ray3 *ray, t_sphere *sp)
+t_color	checkertexture(t_vec3 point, float scale, t_plane *pl)
 {
-	t_vec3	l;
-	double	tca;
-	double	d2;
-	double	tnc;
+	int		checkerx;
+	int		checkery;
+	int		checkerz;
 
-
-	// p = p0 + tV
-	l = sub_vector(sp->center, ray->origin); // 원점과 구 중심을 잇는 방향벡터
-	tca = scalar_product(l, ray->dir); // 빛이 구를 향해가고 있는지를 판단
-	if (tca < 0)
-		return (0);
-	d2 = scalar_product(l, l) - (tca * tca); // 원점에서 벡터 사이의 거리가 r^2보다 크면 FALSE d = d^2
-	if (d2 > sp->radius * sp->radius)
-		return (0);
-	tnc = sqrt(sp->radius * sp->radius - d2);;
-	if (tca - tnc < 0.0)
-		return (1);
+	if (point.z < 0)
+		point.z -= 1;
+	checkerx = (int)(point.x * scale) % 2;
+	checkery = (int)(point.y * scale) % 2;
+	checkerz = (int)(point.z * scale) % 2;
+	if (pl->norm.z == 1.0 && (checkerx + checkery) % 2 == 0)
+		return ((t_color){0, 0, 0});
+	else if (pl->norm.z != 1.0 && (checkerx + checkery + checkerz) % 2 == 0)
+		return ((t_color){0, 0, 0});
 	else
-		return (1);
-	return (1);
+		return ((t_color){255, 255, 255});
 }
 
-double distance_a(t_vec3 a, t_vec3 b) {
-    double dx = a.x - b.x;
-    double dy = a.y - b.y;
-    double dz = a.z - b.z;
-    return sqrt(dx*dx + dy*dy + dz*dz);
-}
-
-
-int	intersect_sphere_shadow(t_ray3 *ray, t_canvas canvas)
+void	spherical_map(t_vec3 p, float *u, float *v, t_vec3 center, float ag)
 {
-	t_vec3	p;
-	t_vec3	g_norm;
-	t_ray3	light;
-	int		idx;
+	float	theta;
+	float	vecmagnitude;
+	float	phi;
+	float	raw_u;
+	t_vec3	relative_point;
 
-	idx = -1;
-	p = add_vector(ray->origin, multiple_vector(ray->t, ray->dir));
-	g_norm = norm_vec(sub_vector(canvas.light_orig, p));
-	light.dir = g_norm;
-	light.origin = p;
-	while (++idx < canvas.obj->sp_cnt)
-		if (hit_line_sphere(&light, &canvas.obj->sp[idx]))
-			return (1);
-	return (0);
+	relative_point = (t_vec3){p.x - center.x, p.y - center.y, p.z - center.z};
+	theta = atan2f(relative_point.z, relative_point.x);
+	vecmagnitude = sqrtf(relative_point.x * relative_point.x + \
+	relative_point.y * relative_point.y + relative_point.z * relative_point.z);
+	phi = acosf(relative_point.y / vecmagnitude);
+	theta += ag;
+	raw_u = theta / (2.0f * M_PI);
+	*u = (raw_u + 0.5f);
+	*v = phi / M_PI;
 }
 
-double mapToRange(double value, double minInput, double maxInput, double minOutput, double maxOutput)
+t_color	uv_grid_pattern_at(t_checker pattern, float u, float v)
 {
-    // 로그 함수를 사용하여 입력값을 [0, ∞) 범위로 매핑
-    double logValue = log(value - minInput + 1);
+	const int	u2 = (int)(u * pattern.width);
+	const int	v2 = (int)(v * pattern.height);
 
-    // [0, ∞) 범위의 값을 [minOutput, maxOutput] 범위로 선형 변환
-    return (((logValue) / (log(maxInput - minInput + 1))) * (maxOutput - minOutput) + minOutput);
+	if ((u2 + v2) % 2)
+		return (pattern.color_a);
+	else
+		return (pattern.color_b);
 }
 
-
-void	hit_plane(t_ray3 *ray, t_plane *pl, t_canvas canvas)
+t_color	get_texture_color(t_texture texture, float u, float v)
 {
-	double	tmp;
-	double	scalar[3];
-	
+	const int	x = (int)(u * (float)texture.width) % texture.width;
+	const int	y = (int)(v * (float)texture.height) % texture.height;
+	const int	offset = (x + y * texture.width) * (texture.bpp / 8);
+	const int	color = *(int *)(texture.data + offset);
+	t_color		c;
 
-	(void)canvas;
-	scalar[0] = scalar_product(pl->on_plane, pl->norm);
-	scalar[1] = scalar_product(ray->origin, pl->norm);
-	scalar[2] = scalar_product(ray->dir, pl->norm);
-	tmp = (scalar[0] - scalar[1]) / scalar[2];
-	if ((ray->t < 0.0 && tmp > 0.0) || (tmp > 0.0 && ray->t > tmp))
+	c.r = (color >> 16) & 0xFF;
+	c.g = (color >> 8) & 0xFF;
+	c.b = color & 0xFF;
+	return (c);
+}
+
+t_color	image_texture_on_sphere(t_vec3 point, t_sphere *sp, t_texture *texture)
+{
+	float	u;
+	float	v;
+
+	spherical_map(point, &u, &v, sp->center, sp->angle);
+	return (get_texture_color(*texture, u, v));
+}
+
+t_color	grid_texture_on_sphere(t_vec3 point, t_checker pattern, t_sphere *sp)
+{
+	float	u;
+	float	v;
+
+	spherical_map(point, &u, &v, sp->center, sp->angle);
+	return (uv_grid_pattern_at(pattern, u, v));
+}
+
+void	init_texture(t_texture *texture, t_view *view, char *path)
+{
+	texture->img = mlx_xpm_file_to_image(view->mlx, path, \
+	&texture->width, &texture->height);
+	if (!texture->img)
 	{
-		ray->t = tmp;
-		ray->type = PL;
-		ray->color[RED] = pl->color[RED];
-		ray->color[GREEN] = pl->color[GREEN];
-		ray->color[BLUE] = pl->color[BLUE];
-		ray->obj = (void *)pl;
-		if (intersect_sphere_shadow(ray, canvas))
-			ray->type = SHADOW;
+		fprintf(stderr, "Failed to load texture: %s\n", path);
+		exit(1);
 	}
+	texture->data = mlx_get_data_addr(texture->img, \
+	&texture->bpp, &texture->size_line, &texture->endian);
+}
+
+void	sphere_texture(t_ray3 *ray, t_sphere *sp)
+{
+	t_color			c;
+	const t_checker	pattern = {{255, 255, 255}, {100, 100, 0}, 32, 16};
+	t_vec3			hit;
+
+	hit = add_vector(ray->origin, multiple_vector(ray->t, ray->dir));
+	if (sp->type == TSP)
+		c = image_texture_on_sphere(hit, sp, &sp->texture);
+	else
+		c = grid_texture_on_sphere(hit, pattern, sp);
+	ray->type = SP;
+	ray->color[RED] = c.r;
+	ray->color[GREEN] = c.g;
+	ray->color[BLUE] = c.b;
+}
+
+void	init_sp_color(t_ray3 *ray, t_sphere *sp)
+{
+	ray->type = SP;
+	ray->color[RED] = sp->color[RED];
+	ray->color[GREEN] = sp->color[GREEN];
+	ray->color[BLUE] = sp->color[BLUE];
 }
 
 void	hit_sphere(t_ray3 *ray, t_sphere *sp, t_canvas canvas)
 {
-	t_vec3	l;
-	double	tca;
-	double	tnc;
-	double	d2;
-	double	tmp;
+	const t_vec3	l = sub_vector(sp->center, ray->origin);
+	const float	tca = scalar_product(l, ray->dir);
+	const float	d2 = scalar_product(l, l) - (tca * tca);
+	const float	tnc = sqrt(sp->radius * sp->radius - d2);
+	float			tmp;
 
-
-	// p = p0 + tV
-	l = sub_vector(sp->center, ray->origin); // 원점과 구 중심을 잇는 방향벡터
-	tca = scalar_product(l, ray->dir); // 빛이 구를 향해가고 있는지를 판단
 	if (tca < 0)
 		return ;
-	d2 = scalar_product(l, l) - (tca * tca); // 원점에서 벡터 사이의 거리가 r^2보다 크면 FALSE d = d^2
 	if (d2 > sp->radius * sp->radius)
 		return ;
-	tnc = sqrt(sp->radius * sp->radius - d2);
 	if (tca - tnc < 0.0)
 		tmp = tca + tnc;
 	else
@@ -110,12 +150,250 @@ void	hit_sphere(t_ray3 *ray, t_sphere *sp, t_canvas canvas)
 	if ((ray->t < 0.0 && tmp > 0.0) || (tmp > 0.0 && ray->t > tmp))
 	{
 		ray->t = tmp;
-		ray->color[RED] = sp->color[RED];
-		ray->color[GREEN] = sp->color[GREEN];
-		ray->color[BLUE] = sp->color[BLUE];
-		ray->type = SP;
 		ray->obj = (void *)sp;
-		if (intersect_sphere_shadow(ray, canvas))
+		if (sp->type == TSP || sp->type == CSP)
+			sphere_texture(ray, sp);
+		else
+			init_sp_color(ray, sp);
+		if (hit_shadow(ray, canvas))
+			ray->type = SHADOW;
+	}
+}
+
+t_vec3	check_plane_direction(t_plane *pl, t_ray3 *ray)
+{
+	t_vec3	orig_to_pl;
+
+	orig_to_pl = sub_vector(ray->origin, pl->on_plane);
+	if (scalar_product(orig_to_pl, pl->norm) < 0.0)
+		return (multiple_vector(-1.0, pl->norm));
+	else
+		return (pl->norm);
+}
+
+void	init_pl_color(t_ray3 *ray, t_plane *pl)
+{
+	ray->color[RED] = pl->color[RED];
+	ray->color[GREEN] = pl->color[GREEN];
+	ray->color[BLUE] = pl->color[BLUE];
+}
+
+void	init_pltexture(t_ray3 *ray, t_plane *pl)
+{
+	t_color	c;
+	t_vec3	hit;
+
+	hit = add_vector(ray->origin, multiple_vector(ray->t, ray->dir));
+	if (pl->type == TPL)
+		c = get_texture_color(pl->texture, ((float)ray->pix[0] / pl->texture.width), ((float)ray->pix[1] / pl->texture.height));
+	else
+		c = checkertexture(hit, 1, pl);
+	ray->color[RED] = c.r;
+	ray->color[GREEN] = c.g;
+	ray->color[BLUE] = c.b;
+}
+
+float random_float_in_range(float min, float max) {
+    return min + (rand() / (float)RAND_MAX) * (max - min);
+}
+
+int hit_line_sphere(t_ray3 *ray, t_sphere *sp)
+{
+    t_vec3  l;
+    float  tca;
+    float  d2;
+    float  tnc;
+
+
+    // p = p0 + tV
+    l = sub_vector(sp->center, ray->origin); // 원점과 구 중심을 잇는 방향벡터
+    tca = scalar_product(l, ray->dir); // 빛이 구를 향해가고 있는지를 판단
+    if (tca < 0)
+        return (0);
+    d2 = scalar_product(l, l) - (tca * tca); // 원점에서 벡터 사이의 거리가 r^2보다 크면 FALSE d = d^2
+    if (d2 > sp->radius * sp->radius)
+        return (0);
+    tnc = sqrt(sp->radius * sp->radius - d2);;
+    if (tca - tnc < 0.0)
+        return (1);
+    else
+        return (1);
+    return (1);
+}
+
+float  intersect_sphere_shadow(t_ray3 *ray, t_canvas canvas, int num_of_light)
+{
+    t_vec3  p;
+    t_vec3  g_norm;
+    t_vec3  sh;
+    t_ray3  light;
+    int     idx[2];
+    float  count;
+
+    idx[0] = -1;
+    count = 0;
+    p = add_vector(ray->origin, multiple_vector(ray->t, ray->dir));
+    sh = p;
+    while (++idx[0] < num_of_light)
+    {
+        idx[1] = -1;
+        p.x += random_float_in_range(0.0, 1.0);
+        p.y += random_float_in_range(0.0, 1.0);
+        p.z += random_float_in_range(0.0, 1.0);
+        g_norm = norm_vec(sub_vector(canvas.obj->l[0].light_orig, p));
+        light.dir = g_norm;
+        light.origin = p;
+        while (++idx[1] < canvas.obj->sp_cnt)
+        {
+            if (hit_line_sphere(&light, &canvas.obj->sp[idx[1]]))
+            {
+                count++;
+                break ;
+            }
+        }
+        p = sh;
+    }
+    if (count == 0)
+        return (0.0);
+    return ((float)count / num_of_light);
+}
+
+
+void	hit_plane(t_ray3 *ray, t_plane *pl, t_canvas canvas)
+{
+	float	tmp;
+	float	scalar[3];
+	float	ll;
+	float shadow_intensity;
+
+	(void)canvas;
+	pl->norm = check_plane_direction(pl, ray);
+	scalar[0] = scalar_product(pl->on_plane, pl->norm);
+	scalar[1] = scalar_product(ray->origin, pl->norm);
+	scalar[2] = scalar_product(ray->dir, pl->norm);
+	tmp = (scalar[0] - scalar[1]) / scalar[2];
+	if ((ray->t < 0.0 && tmp > 0.0) || (tmp > 0.0 && ray->t > tmp))
+	{
+		ray->t = tmp;
+		ray->obj = (void *)pl;
+		ray->type = PL;
+		if (pl->type == TPL || pl->type == CPL)
+			init_pltexture(ray, pl);
+		else
+			init_pl_color(ray, pl);
+		 ll = intersect_sphere_shadow(ray, canvas, 1000); // 그림자 개수 --> 안티엘리어싱
+        if (ll)
+        {
+            ray->type = SHADOW;
+			shadow_intensity = pow(ll, 2.0); // 제곱을 사용하여 그림자를 더 부드럽게 만듭니다.
+			ray->color[RED] *= (1.0 - shadow_intensity);
+			ray->color[GREEN] *= (1.0 - shadow_intensity);
+			ray->color[BLUE] *= (1.0 - shadow_intensity);
+        }
+    }
+}
+
+
+int	discriminant(float a, float b, float c)
+{
+	if ((b * b) - (4 * a * c) >= 0.0)
+		return (1);
+	else
+		return (0);
+}
+
+float	quad_formula(float a, float b, float c)
+{
+	float	sol1;
+	float	sol2;
+
+	sol1 = ((-1) * b - sqrt(b * b - (4 * a * c))) / (2.0 * a);
+	sol2 = ((-1) * b + sqrt(b * b - (4 * a * c))) / (2.0 * a);
+	if (sol1 > 0.0 && sol2 > 0.0)
+		return (sol1);
+	else if (sol1 < 0.0 && sol2 > 0.0)
+		return (sol2);
+	else
+		return (-1.0);
+}
+
+int	cy_in_range(t_ray3 *ray, float t, t_cylinder *cy)
+{
+	t_vec3		hit;
+	const float	condition = cy->height / 2;
+	float		height[2];
+
+	hit = add_vector(ray->origin, multiple_vector(t, ray->dir));
+	height[0] = scalar_product(sub_vector(hit, cy->center), cy->dir);
+	height[1] = scalar_product(sub_vector(hit, cy->center), \
+		multiple_vector(-1.0, cy->dir));
+	if (height[0] > 0 && height[0] > condition)
+		return (0);
+	if (height[1] > 0 && height[1] > condition)
+		return (0);
+	return (1);
+}
+
+void	hit_cap(t_ray3 *ray, t_cylinder *cy, t_plane *cap, t_canvas canvas)
+{
+	float	tmp;
+	float	scalar[3];
+	t_vec3	hit;
+
+	scalar[0] = scalar_product(cap->on_plane, cap->norm);
+	scalar[1] = scalar_product(ray->origin, cap->norm);
+	scalar[2] = scalar_product(ray->dir, cap->norm);
+	tmp = (scalar[0] - scalar[1]) / scalar[2];
+	hit = add_vector(ray->origin, multiple_vector(tmp, ray->dir));
+	if (size_of_vec2(sub_vector(hit, cap->on_plane)) > cy->radius)
+		return ;
+	if ((ray->t < 0.0 && tmp > 0.0) || (tmp > 0.0 && ray->t > tmp))
+	{
+		ray->t = tmp;
+		ray->type = PL;
+		ray->color[RED] = cap->color[RED];
+		ray->color[GREEN] = cap->color[GREEN];
+		ray->color[BLUE] = cap->color[BLUE];
+		ray->obj = (void *)cap;
+		if (hit_shadow(ray, canvas))
+			ray->type = SHADOW;
+	}
+}
+
+void	init_cy_color(t_ray3 *ray, t_cylinder *cy, float tmp)
+{
+	ray->t = tmp;
+	ray->color[RED] = cy->color[RED];
+	ray->color[GREEN] = cy->color[GREEN];
+	ray->color[BLUE] = cy->color[BLUE];
+	ray->type = CY;
+	ray->obj = (void *)cy;
+}
+
+void	hit_cylinder(t_ray3 *ray, t_cylinder *cy, t_canvas canvas)
+{
+	const t_vec3	oc = sub_vector(ray->origin, cy->center);
+	t_vec3			v[2];
+	float			coef[3];
+	float			tmp;
+
+	hit_cap(ray, cy, cy->ucap, canvas);
+	hit_cap(ray, cy, cy->lcap, canvas);
+	v[0] = vector_product(ray->dir, cy->dir);
+	v[1] = vector_product(oc, cy->dir);
+	coef[0] = scalar_product(v[0], v[0]);
+	coef[1] = 2 * scalar_product(v[0], v[1]);
+	coef[2] = scalar_product(v[1], v[1]) - cy->radius * cy->radius;
+	if (discriminant(coef[0], coef[1], coef[2]))
+		tmp = quad_formula(coef[0], coef[1], coef[2]);
+	else
+		tmp = -1.0;
+	if (tmp >= 0.0 && cy_in_range(ray, tmp, cy) == 0)
+		return ;
+	if ((ray->t < 0.0 && tmp > 0.0) || (tmp > 0.0 && ray->t > tmp))
+	{
+		init_cy_color(ray, cy, tmp);
+		if (hit_shadow(ray, canvas))
 			ray->type = SHADOW;
 	}
 }
