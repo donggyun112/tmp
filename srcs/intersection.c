@@ -3,16 +3,16 @@
 /*                                                        :::      ::::::::   */
 /*   intersection.c                                     :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: seodong-gyun <seodong-gyun@student.42.f    +#+  +:+       +#+        */
+/*   By: dongkseo <dongkseo@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/08/29 20:29:45 by jinhyeop          #+#    #+#             */
-/*   Updated: 2023/09/04 00:52:07 by seodong-gyu      ###   ########.fr       */
+/*   Updated: 2023/09/04 23:37:39 by dongkseo         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "../includes/minirt.h"
 
-t_color	checkertexture(t_vec3 point, float scale, t_plane *pl)
+t_color	checkertexture(t_vec3 point, float scale, t_plane *pl, int flag)
 {
 	int		checkerx;
 	int		checkery;
@@ -20,12 +20,20 @@ t_color	checkertexture(t_vec3 point, float scale, t_plane *pl)
 
 	if (point.z < 0)
 		point.z -= 1;
+	if (point.x < 0)
+		point.x -= 1;
+	if (point.y < 0)
+		point.y -= 1;
 	checkerx = (int)(point.x * scale) % 2;
 	checkery = (int)(point.y * scale) % 2;
 	checkerz = (int)(point.z * scale) % 2;
-	if (pl->norm.z == 1.0 && (checkerx + checkery) % 2 == 0)
+	if (flag == 1 && (checkerx + checkerz) % 2 == 0)
 		return ((t_color){0, 0, 0});
-	else if (pl->norm.z != 1.0 && (checkerx + checkery + checkerz) % 2 == 0)
+	else if (flag == 1)
+		return ((t_color){255, 255, 255});
+	else if ((pl->norm.z == 1.0 && ((checkerx + checkery) % 2 == 0)) || (pl->norm.z == -1.0 && ((checkerx + checkery) % 2 == 0)))
+		return ((t_color){0, 0, 0});
+	else if (pl->norm.z != 1.0 && (checkerx + checkery + checkerz) % 2 == 0 && pl->norm.z != -1.0)
 		return ((t_color){0, 0, 0});
 	else
 		return ((t_color){255, 255, 255});
@@ -187,87 +195,17 @@ void	init_pltexture(t_ray3 *ray, t_plane *pl)
 	if (pl->type == TPL)
 		c = get_texture_color(pl->texture, ((float)ray->pix[0] / pl->texture.width), ((float)ray->pix[1] / pl->texture.height));
 	else
-		c = checkertexture(hit, 1, pl);
+		c = checkertexture(hit, 1, pl, 0);
 	ray->color[RED] = c.r;
 	ray->color[GREEN] = c.g;
 	ray->color[BLUE] = c.b;
 }
 
-float random_float_in_range(float min, float max) {
-    return min + (rand() / (float)RAND_MAX) * (max - min);
-}
-
-int hit_line_sphere(t_ray3 *ray, t_sphere *sp)
-{
-    t_vec3  l;
-    float  tca;
-    float  d2;
-    float  tnc;
-
-
-    // p = p0 + tV
-    l = sub_vector(sp->center, ray->origin); // 원점과 구 중심을 잇는 방향벡터
-    tca = scalar_product(l, ray->dir); // 빛이 구를 향해가고 있는지를 판단
-    if (tca < 0)
-        return (0);
-    d2 = scalar_product(l, l) - (tca * tca); // 원점에서 벡터 사이의 거리가 r^2보다 크면 FALSE d = d^2
-    if (d2 > sp->radius * sp->radius)
-        return (0);
-    tnc = sqrt(sp->radius * sp->radius - d2);;
-    if (tca - tnc < 0.0)
-        return (1);
-    else
-        return (1);
-    return (1);
-}
-
-float  intersect_sphere_shadow(t_ray3 *ray, t_canvas canvas, int num_of_light)
-{
-    t_vec3  p;
-    t_vec3  g_norm;
-    t_vec3  sh;
-    t_ray3  light;
-    int     idx[2];
-    float  count;
-
-    idx[0] = -1;
-    count = 0;
-    p = add_vector(ray->origin, multiple_vector(ray->t, ray->dir));
-    sh = p;
-    while (++idx[0] < num_of_light)
-    {
-        idx[1] = -1;
-        p.x += random_float_in_range(0.0, 1.0);
-        p.y += random_float_in_range(0.0, 1.0);
-        p.z += random_float_in_range(0.0, 1.0);
-        g_norm = norm_vec(sub_vector(canvas.obj->l[0].light_orig, p));
-        light.dir = g_norm;
-        light.origin = p;
-        while (++idx[1] < canvas.obj->sp_cnt)
-        {
-            if (hit_line_sphere(&light, &canvas.obj->sp[idx[1]]))
-            {
-                count++;
-                break ;
-            }
-        }
-        p = sh;
-    }
-    if (count == 0)
-        return (0.0);
-    return ((float)count / num_of_light);
-}
-
-
 void	hit_plane(t_ray3 *ray, t_plane *pl, t_canvas canvas)
 {
 	float	tmp;
 	float	scalar[3];
-	float	ll;
-	float shadow_intensity;
 
-	(void)canvas;
-	pl->norm = check_plane_direction(pl, ray);
 	scalar[0] = scalar_product(pl->on_plane, pl->norm);
 	scalar[1] = scalar_product(ray->origin, pl->norm);
 	scalar[2] = scalar_product(ray->dir, pl->norm);
@@ -281,18 +219,10 @@ void	hit_plane(t_ray3 *ray, t_plane *pl, t_canvas canvas)
 			init_pltexture(ray, pl);
 		else
 			init_pl_color(ray, pl);
-		 ll = intersect_sphere_shadow(ray, canvas, 1000); // 그림자 개수 --> 안티엘리어싱
-        if (ll)
-        {
-            ray->type = SHADOW;
-			shadow_intensity = pow(ll, 2.0); // 제곱을 사용하여 그림자를 더 부드럽게 만듭니다.
-			ray->color[RED] *= (1.0 - shadow_intensity);
-			ray->color[GREEN] *= (1.0 - shadow_intensity);
-			ray->color[BLUE] *= (1.0 - shadow_intensity);
-        }
-    }
+		if (hit_shadow(ray, canvas))
+			ray->type = SHADOW;
+	}
 }
-
 
 int	discriminant(float a, float b, float c)
 {
@@ -334,6 +264,30 @@ int	cy_in_range(t_ray3 *ray, float t, t_cylinder *cy)
 	return (1);
 }
 
+void endcap_map(t_vec3 p, float *u, float *v, t_vec3 center, float radius)
+{
+    t_vec3 relative_point = (t_vec3){p.z - center.z, p.x - center.x, 0};
+
+    *u = relative_point.x / (2.0 * radius) + 0.5; // Mapping x to U with normalization
+    *v = relative_point.z / (2.0 * radius) + 0.5; // Mapping z to V with normalization
+}
+
+t_color checker_pattern(t_vec3 p, t_vec3 center, float radius, float tile_size)
+{
+    float u, v;
+    endcap_map(p, &u, &v, center, radius);
+
+    int u_checker = (int)(u * tile_size);
+    int v_checker = (int)(v * tile_size);
+
+    // Decide color based on UV coordinates
+    if ((u_checker + v_checker) % 2)
+        return (t_color){255, 255, 255}; // white
+    else
+        return (t_color){255, 255, 0}; // black
+}
+
+
 void	hit_cap(t_ray3 *ray, t_cylinder *cy, t_plane *cap, t_canvas canvas)
 {
 	float	tmp;
@@ -355,6 +309,13 @@ void	hit_cap(t_ray3 *ray, t_cylinder *cy, t_plane *cap, t_canvas canvas)
 		ray->color[GREEN] = cap->color[GREEN];
 		ray->color[BLUE] = cap->color[BLUE];
 		ray->obj = (void *)cap;
+		if (cy->type == CCY)
+		{
+			t_color c = checkertexture(hit, 5.0, cap, 1);
+			ray->color[RED] = c.r;
+			ray->color[GREEN] = c.g;
+			ray->color[BLUE] = c.b;
+		}
 		if (hit_shadow(ray, canvas))
 			ray->type = SHADOW;
 	}
@@ -368,6 +329,58 @@ void	init_cy_color(t_ray3 *ray, t_cylinder *cy, float tmp)
 	ray->color[BLUE] = cy->color[BLUE];
 	ray->type = CY;
 	ray->obj = (void *)cy;
+}
+
+void cylindrical_map(t_vec3 p, float *u, float *v, t_vec3 center, float height)
+{
+	t_vec3	relative_point;
+	float	theta;
+
+	relative_point = (t_vec3){p.x - center.x, p.y - center.y, p.z - center.z};
+	theta = atan2f(relative_point.x, relative_point.z); 
+	*u = (theta + M_PI) / (2.0f * M_PI);
+	*v = (p.y - center.y + height/2) / height;
+}
+
+
+t_color get_checker_pattern(t_vec3 p, t_vec3 center, float height)
+{
+    float	u; 
+	float	v;
+	int		u_checker;
+	int		v_checker;
+
+	cylindrical_map(p, &u, &v, center, height);
+    u_checker = (int)(u * 32);
+    v_checker = (int)(v * 16);
+    if ((u_checker + v_checker) % 2 == 0)
+        return ((t_color){0, 0, 0});
+    else
+        return ((t_color){255, 255, 255});
+}
+
+t_color	image_textur_on_cylinder(t_vec3 point, t_cylinder *cy, t_texture *texture)
+{
+	float	u;
+	float	v;
+
+	cylindrical_map(point, &u, &v, cy->center, cy->height);
+	return (get_texture_color(*texture, u, v));
+}
+
+void	cylinder_texture(t_ray3 *ray, t_cylinder *cy)
+{
+	const t_vec3	hit = add_vector(ray->origin, multiple_vector(ray->t, ray->dir));
+	t_color			c;
+
+	if (cy->type == CCY)
+		c = get_checker_pattern(hit, cy->center, cy->height);
+	else
+		c = image_textur_on_cylinder(hit, cy, &cy->texture);
+	ray->color[RED] = c.r;
+	ray->color[GREEN] = c.g;
+	ray->color[BLUE] = c.b;
+	ray->type = CY;
 }
 
 void	hit_cylinder(t_ray3 *ray, t_cylinder *cy, t_canvas canvas)
@@ -392,7 +405,12 @@ void	hit_cylinder(t_ray3 *ray, t_cylinder *cy, t_canvas canvas)
 		return ;
 	if ((ray->t < 0.0 && tmp > 0.0) || (tmp > 0.0 && ray->t > tmp))
 	{
-		init_cy_color(ray, cy, tmp);
+		ray->t = tmp;
+		ray->obj = (void *)cy;
+		if (cy->type == CCY)
+			cylinder_texture(ray, cy);
+		else
+			init_cy_color(ray, cy, tmp);
 		if (hit_shadow(ray, canvas))
 			ray->type = SHADOW;
 	}
